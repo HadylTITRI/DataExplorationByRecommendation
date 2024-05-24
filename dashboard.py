@@ -1,16 +1,15 @@
 import dash
-from dash import dcc
-from dash import html
+from dash import dcc, html
 import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output, State
 import pandas as pd
-import plotly.express as px
 import nbformat
 from nbconvert.preprocessors import ExecutePreprocessor
 import os
+import random
 
-# Initialize the app with a dark theme
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+# Initialize the app with a Bootstrap theme and FontAwesome icons
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.FLATLY, "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"])
 
 # List of StackExchange sites
 site_list = [
@@ -42,6 +41,17 @@ site_list = [
     "workplace", "worldbuilding", "writing"
 ]
 
+# Generate a random color for each button
+def generate_color():
+    colors = ['primary', 'secondary', 'success', 'danger', 'warning', 'info', 'light', 'dark']
+    return random.choice(colors)
+
+# Create buttons for each site
+site_buttons = [
+    dbc.Button(site, id={'type': 'site-button', 'index': site}, color=generate_color(), className="mb-2 mr-2", style={'margin-right': '5px', 'margin-bottom': '5px'})
+    for site in site_list
+]
+
 def run_notebook(notebook_path, parameters=None):
     with open(notebook_path, encoding='utf-8') as f:
         nb = nbformat.read(f, as_version=4)
@@ -60,62 +70,69 @@ def run_notebook(notebook_path, parameters=None):
     return None
 
 app.layout = dbc.Container([
-    html.H1("StackExchange Data Analysis Dashboard", className="text-center my-4"),
-    
     dbc.Row([
         dbc.Col([
-            html.Label("Select StackExchange Site", className="font-weight-bold"),
-            dcc.Dropdown(
-                id='site-dropdown',
-                options=[{'label': site, 'value': site} for site in site_list],
-                value='math',
-                className="mb-4"
-            ),
-        ], width=8),
-        dbc.Col([
-            dbc.Button("Collect Data", id='collect-button', color="primary", className="mb-4")
-        ], width=4, className="d-flex align-items-center justify-content-end")
+            html.H1("StackExchange Data Exploration Dashboard", className="text-center my-4 font-weight-bold", style={'color': 'white', 'font-family': 'Times New Roman', 'font-size': '30px'}),
+            html.A(html.I(className="fab fa-github fa-2x"), href="https://github.com/HadylTITRI/DataExplorationByRecommendation", className="text-center d-block mb-4", style={'color': 'white'}),
+        ], width=12, align='center', style={'background-color': '#2c3e50', 'margin':'10px','padding': '15x', 'border-radius': '15px', 'box-shadow': '0 4px 8px rgba(0, 0, 0, 0.1)'})
     ]),
-
     dbc.Row([
         dbc.Col([
-            dbc.Progress(id="progress-bar", striped=True, animated=True, className="mb-4")
-        ])
+            dbc.Card([
+                dbc.CardBody([
+                    html.Label([html.I(className="fas fa-globe"), " Select StackExchange Site"], className="font-weight-bold", style={'font-family': 'Times New Roman', 'color': '#2c3e50', 'font-size': '20px'}),
+                    html.Div(site_buttons, className="mb-4", style={'column-count': 5, 'column-gap': '20px'}),
+                    html.Div(id='selected-site', style={'font-family': 'Times New Roman', 'color': '#2c3e50'}),
+                    dbc.Button([html.I(className="fas fa-download"), " Collect Data"], id='collect-button', color="primary", className="mb-4", style={'width': '100%'}),
+                    dbc.Progress(id="progress-bar", striped=True, animated=True, className="mb-4", style={'height': '20px'}),
+                    html.Div(id='output-area', children=[], style={'font-family': 'Times New Roman', 'color': '#2c3e50'})
+                ])
+            ], className="mb-4 shadow-sm", style={'background-color': 'white', 'border-radius': '15px', 'box-shadow': '0 4px 8px rgba(0, 0, 0, 0.1)', 'padding': '15px'})
+        ], width=12)
     ]),
-
     dbc.Row([
         dbc.Col([
-            html.Div(id='output-area', children=[])
-        ])
-    ]),
-
-    html.Hr(),
-
-    dbc.Row([
-        dbc.Col([
-            html.Label("Enter your question", className="font-weight-bold"),
-            dcc.Textarea(id='user-question', className="mb-4", style={'width': '100%', 'height': '100px'}),
-            dbc.Button("Get Recommendations", id='recommend-button', color="success", className="mb-4")
-        ])
-    ]),
-
-    dbc.Row([
-        dbc.Col([
-            html.Div(id='recommendation-output', children=[])
-        ])
+            dbc.Card([
+                dbc.CardBody([
+                    html.Label([html.I(className="fas fa-question-circle"), " Enter your question"], className="font-weight-bold", style={'font-family': 'Times New Roman', 'color': '#2c3e50', 'font-size': '20px'}),
+                    dcc.Textarea(id='user-question', className="mb-4", style={'width': '100%', 'height': '120px', 'font-family': 'Times New Roman', 'border-radius': '5px', 'padding': '10px', 'box-shadow': '0 4px 8px rgba(0, 0, 0, 0.1)'}),
+                    dbc.Button([html.I(className="fas fa-lightbulb"), " Get Recommendations"], id='recommend-button', color="success", className="mb-4", style={'width': '100%', 'font-family': 'Times New Roman', 'font-size': '18px'}),
+                    html.Div(id='recommendation-output', children=[
+                    html.Div(id='recommendation-list', style={'color': '#2c3e50', 'font-family': 'Times New Roman', 'padding': '10px'})
+                    ])
+                ])
+            ], className="mb-4 shadow-sm", style={'height': '100%', 'border-radius': '15px', 'box-shadow': '0 4px 8px rgba(0, 0, 0, 0.1)'})
+        ], width=12, style={'min-height': '80vh'})
     ])
-])
+], fluid=True)
+
+@app.callback(
+    Output('selected-site', 'children'),
+    Input({'type': 'site-button', 'index': dash.dependencies.ALL}, 'n_clicks'),
+    prevent_initial_call=True
+)
+def update_selected_site(n_clicks):
+    ctx = dash.callback_context
+
+    if not ctx.triggered:
+        return "No site selected."
+    
+    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    site = eval(button_id)['index']
+    
+    return f"Selected site: {site}"
 
 @app.callback(
     [Output('progress-bar', 'value'),
      Output('progress-bar', 'color'),
      Output('output-area', 'children')],
     Input('collect-button', 'n_clicks'),
-    State('site-dropdown', 'value'),
+    State('selected-site', 'children'),
     prevent_initial_call=True
 )
-def collect_data(n_clicks, site):
-    if n_clicks:
+def collect_data(n_clicks, selected_site_text):
+    if n_clicks and selected_site_text:
+        site = selected_site_text.split(": ")[1]
         progress = 0
         progress_steps = []
         messages = []
@@ -143,11 +160,6 @@ def collect_data(n_clicks, site):
         progress = 100
         progress_steps.append(progress)
         messages.append(html.Div("Clustering complete.", style={'color': 'green'}))
-        
-        # Show the plot of clusters (assume the plot is saved as 'clusters_plot.png')
-        if os.path.exists('clusters_plot.png'):
-            img_html = html.Img(src='/assets/clusters_plot.png', style={'width': '100%', 'height': 'auto'})
-            messages.append(img_html)
 
         return progress, "success", messages
 
@@ -160,19 +172,22 @@ def collect_data(n_clicks, site):
     prevent_initial_call=True
 )
 def get_recommendations(n_clicks, user_question):
-    if n_clicks:
+    if n_clicks and isinstance(user_question, str) :
         if not user_question.strip():
             return [html.Div("Please enter a question.", style={'color': 'red'})]
-
+            
         # Run the recommendation model notebook
-        error = run_notebook('RecommendationModel.ipynb', f"user_question = '{user_question}'")
+        error = run_notebook('RecommendationModel.ipynb', f"user_question ='{user_question}'")
+        
         if error:
             return [html.Div(f"Error during recommendation: {error}", style={'color': 'red'})]
-
+        
         # Display recommendations
         if os.path.exists('recommendations.csv'):
             recommendations_df = pd.read_csv('recommendations.csv')
-            return dbc.Table.from_dataframe(recommendations_df, striped=True, bordered=True, hover=True, dark=True)
+            path_html = html.Div("Path to recommendations:", className="font-weight-bold")
+            list_html = dbc.Table.from_dataframe(recommendations_df, striped=True, bordered=True, hover=True, className="mt-4")
+            return [path_html, list_html]
 
         return [html.Div("No recommendations found.", style={'color': 'red'})]
 
