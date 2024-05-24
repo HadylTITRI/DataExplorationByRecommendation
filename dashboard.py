@@ -7,7 +7,9 @@ import nbformat
 from nbconvert.preprocessors import ExecutePreprocessor
 import os
 import random
-
+import zmq.asyncio
+import asyncio
+asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 # Initialize the app with a Bootstrap theme and FontAwesome icons
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.FLATLY, "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"])
 
@@ -72,37 +74,35 @@ def run_notebook(notebook_path, parameters=None):
 app.layout = dbc.Container([
     dbc.Row([
         dbc.Col([
-            html.H1("StackExchange Data Exploration Dashboard", className="text-center my-4 font-weight-bold", style={'color': 'white', 'font-family': 'Times New Roman', 'font-size': '30px'}),
+            html.H1("StackExchange Data Exploration Engine", className="text-center my-4 font-weight-bold", style={'color': 'white', 'font-family': 'DejaVu Sans Mono, monospace', 'font-size': '32px'}),
             html.A(html.I(className="fab fa-github fa-2x"), href="https://github.com/HadylTITRI/DataExplorationByRecommendation", className="text-center d-block mb-4", style={'color': 'white'}),
-        ], width=12, align='center', style={'background-color': '#2c3e50', 'margin':'10px','padding': '15x', 'border-radius': '15px', 'box-shadow': '0 4px 8px rgba(0, 0, 0, 0.1)'})
+        ], align='center', style={'background-color': '#2c3e50', 'margin':'12px','padding': '16x', 'border-radius': '15px', 'box-shadow': '0 4px 8px rgba(0, 0, 0, 0.1)'})
     ]),
     dbc.Row([
         dbc.Col([
             dbc.Card([
                 dbc.CardBody([
-                    html.Label([html.I(className="fas fa-globe"), " Select StackExchange Site"], className="font-weight-bold", style={'font-family': 'Times New Roman', 'color': '#2c3e50', 'font-size': '20px'}),
-                    html.Div(site_buttons, className="mb-4", style={'column-count': 5, 'column-gap': '20px'}),
-                    html.Div(id='selected-site', style={'font-family': 'Times New Roman', 'color': '#2c3e50'}),
-                    dbc.Button([html.I(className="fas fa-download"), " Collect Data"], id='collect-button', color="primary", className="mb-4", style={'width': '100%'}),
+                    html.Label([html.I(className="fas fa-globe"), " Select StackExchange Site"], className="font-weight-bold", style={'color': 'white', 'font-family': 'DejaVu Sans Mono, monospace','font-weight': 'bold','font-size':'18px', 'margin':'8px' }),
+                    html.Div(site_buttons, className="mb-4", style={'column-count': 5,'font-family': 'DejaVu Sans Mono, monospace', 'column-gap': '20px','font-weight': 'bold'}),
+                    html.Div(id='selected-site', style={'color': 'black'}),
+                    dbc.Button([html.I(className="fas fa-download"), " Collect Data"], id='collect-button', color="primary", className="mb-4", style={'font-family': 'DejaVu Sans Mono, monospace','width': '100%','font-weight': 'bold'}),
                     dbc.Progress(id="progress-bar", striped=True, animated=True, className="mb-4", style={'height': '20px'}),
-                    html.Div(id='output-area', children=[], style={'font-family': 'Times New Roman', 'color': '#2c3e50'})
+                    html.Div(id='output-area', children=[])
                 ])
-            ], className="mb-4 shadow-sm", style={'background-color': 'white', 'border-radius': '15px', 'box-shadow': '0 4px 8px rgba(0, 0, 0, 0.1)', 'padding': '15px'})
-        ], width=12)
-    ]),
-    dbc.Row([
+            ], className="mb-4 shadow-sm", style={'background-color': '#2c3e50', 'border-radius': '15px', 'box-shadow': '0 4px 8px rgba(0, 0, 0, 0.1)', 'padding': '15px'})
+        ], width=6),
         dbc.Col([
             dbc.Card([
                 dbc.CardBody([
-                    html.Label([html.I(className="fas fa-question-circle"), " Enter your question"], className="font-weight-bold", style={'font-family': 'Times New Roman', 'color': '#2c3e50', 'font-size': '20px'}),
-                    dcc.Textarea(id='user-question', className="mb-4", style={'width': '100%', 'height': '120px', 'font-family': 'Times New Roman', 'border-radius': '5px', 'padding': '10px', 'box-shadow': '0 4px 8px rgba(0, 0, 0, 0.1)'}),
-                    dbc.Button([html.I(className="fas fa-lightbulb"), " Get Recommendations"], id='recommend-button', color="success", className="mb-4", style={'width': '100%', 'font-family': 'Times New Roman', 'font-size': '18px'}),
+                    html.Label([html.I(className="fas fa-question-circle"), " Enter your question"], className="font-weight-bold", style={'color': 'black', 'font-family': 'DejaVu Sans Mono, monospace','font-weight': 'bold'}),
+                    dcc.Textarea(id='user-question', className="mb-4", style={'width': '100%', 'height': '120px', 'border-radius': '5px', 'padding': '10px','font-family': 'DejaVu Sans Mono, monospace', 'box-shadow': '0 4px 8px rgba(0, 0, 0, 0.1)'}),
+                    dbc.Button([html.I(className="fas fa-lightbulb"), " Get Recommendations"], id='recommend-button', color="success", className="mb-4", style={'font-family': 'DejaVu Sans Mono, monospace','width': '100%'}),
                     html.Div(id='recommendation-output', children=[
-                    html.Div(id='recommendation-list', style={'color': '#2c3e50', 'font-family': 'Times New Roman', 'padding': '10px'})
+                    html.Div(id='recommendation-list')
                     ])
                 ])
             ], className="mb-4 shadow-sm", style={'height': '100%', 'border-radius': '15px', 'box-shadow': '0 4px 8px rgba(0, 0, 0, 0.1)'})
-        ], width=12, style={'min-height': '80vh'})
+        ], width=6)
     ])
 ], fluid=True)
 
@@ -143,7 +143,7 @@ def collect_data(n_clicks, selected_site_text):
             return progress, "danger", [html.Div(f"Error during data collection: {error}", style={'color': 'red'})]
         progress += 33
         progress_steps.append(progress)
-        messages.append(html.Div("Data collection complete.", style={'color': 'green'}))
+        messages.append(html.Div("Data collection complete.", style={'color': 'white'}))
         
         # Step 2: Data preprocessing
         error = run_notebook('DataPreprocessing.ipynb')
@@ -151,7 +151,7 @@ def collect_data(n_clicks, selected_site_text):
             return progress, "danger", [html.Div(f"Error during data preprocessing: {error}", style={'color': 'red'})]
         progress += 33
         progress_steps.append(progress)
-        messages.append(html.Div("Data preprocessing complete.", style={'color': 'green'}))
+        messages.append(html.Div("Data preprocessing complete.", style={'color': 'white'}))
         
         # Step 3: Clustering
         error = run_notebook('Clustering.ipynb')
@@ -159,7 +159,7 @@ def collect_data(n_clicks, selected_site_text):
             return progress, "danger", [html.Div(f"Error during clustering: {error}", style={'color': 'red'})]
         progress = 100
         progress_steps.append(progress)
-        messages.append(html.Div("Clustering complete.", style={'color': 'green'}))
+        messages.append(html.Div("Clustering complete.", style={'color': 'white'}))
 
         return progress, "success", messages
 
@@ -183,11 +183,10 @@ def get_recommendations(n_clicks, user_question):
             return [html.Div(f"Error during recommendation: {error}", style={'color': 'red'})]
         
         # Display recommendations
-        if os.path.exists('recommendations.csv'):
+        if os.path.exists('recommendations.csv') and os.path.getsize('recommendations.csv') > 0:
             recommendations_df = pd.read_csv('recommendations.csv')
-            path_html = html.Div("Path to recommendations:", className="font-weight-bold")
             list_html = dbc.Table.from_dataframe(recommendations_df, striped=True, bordered=True, hover=True, className="mt-4")
-            return [path_html, list_html]
+            return [list_html]
 
         return [html.Div("No recommendations found.", style={'color': 'red'})]
 
