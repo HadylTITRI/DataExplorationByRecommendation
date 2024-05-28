@@ -7,9 +7,11 @@ import nbformat
 from nbconvert.preprocessors import ExecutePreprocessor
 import os
 import random
-import plotly.express as px
+import pymongo
 import zmq.asyncio
 import asyncio
+import time
+
 asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 # Initialize the app with a Bootstrap theme and FontAwesome icons
@@ -32,7 +34,7 @@ site_buttons = [
     for site in site_list
 ]
 
-def run_notebook(notebook_path, parameters=None):
+def run_notebook(notebook_path, parameters=None, progress_update_callback=None):
     with open(notebook_path, encoding='utf-8') as f:
         nb = nbformat.read(f, as_version=4)
     
@@ -42,8 +44,15 @@ def run_notebook(notebook_path, parameters=None):
         param_cell = nbformat.v4.new_code_cell(parameters)
         nb.cells.insert(0, param_cell)
     
+    if progress_update_callback:
+        progress_update_callback(0)
+
     try:
-        ep.preprocess(nb, {'metadata': {'path': './'}})
+        for cell in nb.cells:
+            if cell.cell_type == 'code':
+                ep.preprocess_cell(cell, {'metadata': {'path': './'}})
+                if progress_update_callback:
+                    progress_update_callback(100 * (nb.cells.index(cell) + 1) / len(nb.cells))
     except Exception as e:
         return str(e)
     
@@ -80,7 +89,9 @@ main_layout = dbc.Container([
                     html.Div(site_buttons, className="mb-4", style={'column-count': 5,'font-family': 'DejaVu Sans Mono, monospace', 'column-gap': '20px','font-weight': 'bold'}),
                     html.Div(id='selected-site', style={'color': 'black'}),
                     dbc.Button([html.I(className="fas fa-download"), " Collect Data"], id='collect-button', color="primary", className="mb-4", style={'font-family': 'DejaVu Sans Mono, monospace','width': '100%','font-weight': 'bold'}),
-                    dbc.Progress(id="progress-bar", striped=True, animated=True, className="mb-4", style={'height': '20px'}),
+                    dbc.Progress(id="progress-bar-1", striped=True, animated=True, className="mb-4", style={'height': '20px'}),
+                    dbc.Progress(id="progress-bar-2", striped=True, animated=True, className="mb-4", style={'height': '20px'}),
+                    dbc.Progress(id="progress-bar-3", striped=True, animated=True, className="mb-4", style={'height': '20px'}),
                     html.Div(id='output-area', children=[])
                 ])
             ], className="mb-4 shadow-sm", style={'background-color': '#2c3e50', 'border-radius': '15px', 'box-shadow': '0 4px 8px rgba(0, 0, 0, 0.1)', 'padding': '15px'})
@@ -111,7 +122,8 @@ data_display_layout = dbc.Container([
         dbc.Col([
             # Placeholders for data display elements
             html.Div(id='dataframe-display'),
-            dcc.Graph(id='plot-display')
+            dbc.Button("Load MongoDB Schema", id="load-schema-button", color="info", className="mb-4"),
+            html.Div(id='mongodb-schema-display')
         ], width=12)
     ])
 ], fluid=True)
@@ -149,8 +161,8 @@ def update_selected_site(n_clicks):
     return f"Selected site: {site}"
 
 @app.callback(
-    [Output('progress-bar', 'value'),
-     Output('progress-bar', 'color'),
+    [Output('progress-bar-1', 'value'),
+     Output('progress-bar-1', 'color'),
      Output('output-area', 'children')],
     Input('collect-button', 'n_clicks'),
     State('selected-site', 'children'),
@@ -159,35 +171,47 @@ def update_selected_site(n_clicks):
 def collect_data(n_clicks, selected_site_text):
     if n_clicks and selected_site_text:
         site = selected_site_text.split(": ")[1]
-        progress = 0
-        progress_steps = []
+        
+        def progress_update_1(value):
+            nonlocal progress_value_1
+            progress_value_1 = value
+            time.sleep(0.1)
+
+        def progress_update_2(value):
+            nonlocal progress_value_2
+            progress_value_2 = value
+            time.sleep(0.1)
+
+        def progress_update_3(value):
+            nonlocal progress_value_3
+            progress_value_3 = value
+            time.sleep(0.1)
+        
+        progress_value_1 = 0
+        progress_value_2 = 0
+        progress_value_3 = 0
+
         messages = []
         
         # Step 1: Collect data
-        error = run_notebook('APIdataExtraction.ipynb', f"site = '{site}'")
+        error = run_notebook('APIdataExtraction.ipynb', f"site = '{site}'", progress_update_1)
         if error:
-            return progress, "danger", [html.Div(f"Error during data collection: {error}", style={'color': 'red'})]
-        progress += 33
-        progress_steps.append(progress)
+            return progress_value_1, "danger", [html.Div(f"Error during data collection: {error}", style={'color': 'red'})]
         messages.append(html.Div("Data collection complete.", style={'color': 'white'}))
         
         # Step 2: Data preprocessing
-        error = run_notebook('DataPreprocessing.ipynb')
+        error = run_notebook('DataPreprocessing.ipynb', progress_update_callback=progress_update_2)
         if error:
-            return progress, "danger", [html.Div(f"Error during data preprocessing: {error}", style={'color': 'red'})]
-        progress += 33
-        progress_steps.append(progress)
+            return progress_value_2, "danger", [html.Div(f"Error during data preprocessing: {error}", style={'color': 'red'})]
         messages.append(html.Div("Data preprocessing complete.", style={'color': 'white'}))
         
         # Step 3: Clustering
-        error = run_notebook('Clustering.ipynb')
+        error = run_notebook('Clustering.ipynb', progress_update_callback=progress_update_3)
         if error:
-            return progress, "danger", [html.Div(f"Error during clustering: {error}", style={'color': 'red'})]
-        progress = 100
-        progress_steps.append(progress)
+            return progress_value_3, "danger", [html.Div(f"Error during clustering: {error}", style={'color': 'red'})]
         messages.append(html.Div("Clustering complete.", style={'color': 'white'}))
 
-        return progress, "success", messages
+        return progress_value_1, "success", messages
 
     return 0, "info", []
 
@@ -220,8 +244,7 @@ def get_recommendations(n_clicks, user_question):
 
 # Callback for loading and displaying data in the Data Display Interface
 @app.callback(
-    [Output('dataframe-display', 'children'),
-     Output('plot-display', 'figure')],
+    Output('dataframe-display', 'children'),
     Input('data-display-button', 'n_clicks')
 )
 def display_data(n_clicks):
@@ -230,7 +253,7 @@ def display_data(n_clicks):
         error = run_notebook('RecommendationModel.ipynb')
         
         if error:
-            return [html.Div(f"Error during notebook execution: {error}", style={'color': 'red'})], {}
+            return [html.Div(f"Error during notebook execution: {error}", style={'color': 'red'})]
 
         # Load the data
         if os.path.exists('dataframe.csv') and os.path.getsize('dataframe.csv') > 0:
@@ -242,18 +265,43 @@ def display_data(n_clicks):
                 style_header={'backgroundColor': 'rgb(230, 230, 230)', 'fontWeight': 'bold'},
                 style_cell={'textAlign': 'left', 'padding': '5px'},
             )
+            return table
         else:
-            table = html.Div("No data available.", style={'color': 'red'})
-        
-        # Create a plot
-        if os.path.exists('plot.png'):
-            fig = px.imshow('plot.png')
-        else:
-            fig = px.imshow([])
+            return html.Div("No data available.", style={'color': 'red'})
 
-        return table, fig
+    return html.Div()
 
-    return [], {}
+# Callback for loading MongoDB schema
+@app.callback(
+    Output('mongodb-schema-display', 'children'),
+    Input('load-schema-button', 'n_clicks')
+)
+def load_mongodb_schema(n_clicks):
+    if n_clicks:
+        try:
+            # Connect to MongoDB
+            client = pymongo.MongoClient("mongodb://localhost:27017/")
+            db = client["your_database_name"]
+            
+            schema = []
+            for collection_name in db.list_collection_names():
+                collection = db[collection_name]
+                sample_doc = collection.find_one()
+                if sample_doc:
+                    schema.append(html.H5(f"Collection: {collection_name}"))
+                    schema.append(dash_table.DataTable(
+                        data=[{"Field": k, "Type": type(v).__name__} for k, v in sample_doc.items()],
+                        columns=[{"name": "Field", "id": "Field"}, {"name": "Type", "id": "Type"}],
+                        style_table={'overflowX': 'auto'},
+                        style_header={'backgroundColor': 'rgb(230, 230, 230)', 'fontWeight': 'bold'},
+                        style_cell={'textAlign': 'left', 'padding': '5px'},
+                    ))
+                    schema.append(html.Hr())
+            return schema
+        except Exception as e:
+            return html.Div(f"Error: {e}", style={'color': 'red'})
+    
+    return html.Div("Click the button to load MongoDB schema.")
 
 if __name__ == '__main__':
     app.run_server(debug=True)
