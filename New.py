@@ -15,7 +15,7 @@ from pymongo import MongoClient
 asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 # Initialize the app with a Bootstrap theme and FontAwesome icons
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.FLATLY, "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"])
+app = dash.Dash(__name__, suppress_callbacks=True, external_stylesheets=[dbc.themes.FLATLY, "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"])
 
 # List of StackExchange sites
 site_list = [
@@ -78,7 +78,7 @@ def run_notebook(notebook_path, parameters=None):
 # Create MongoDB schema display function
 def fetch_mongodb_schema():
     client = MongoClient('mongodb://localhost:27017/')
-    db = client['your_database_name']
+    db = client['admin']
     collections = db.list_collection_names()
     
     schema = {}
