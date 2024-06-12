@@ -267,7 +267,7 @@ def collect_data(n_clicks, selected_site_text):
         messages.append(html.Div("Data preprocessing complete.", style={'color': 'BLACK', 'font-family': 'DejaVu Sans Mono, monospace', 'font-weight': 'bold'}))
         
         # Step 3: Clustering
-        error = run_notebook('Clustering.ipynb')
+        error = run_notebook('Regroupement.ipynb')
         if error:
             return progress, "danger", [html.Div(f"Error during clustering: {error}", style={'color': 'red'})]
         progress = 100
@@ -301,7 +301,7 @@ def get_recommendations(n_clicks, user_question):
             return [html.Div(f"Error during recommendation: {error}", style={'color': 'red'})]
 
         # Display recommendations
-        if os.path.exists('recommendations.csv') and os.path.getsize('recommendations.csv') >= 0:
+        if os.path.exists('recommendations.csv') and os.path.getsize('recommendations.csv') >= 5:
             recommendations_df = pd.read_csv('recommendations.csv')
             recommendations_list = [html.Li(recommendation) for recommendation in recommendations_df['Answers']]
             list_html = html.Ol(recommendations_list)
