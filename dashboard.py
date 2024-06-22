@@ -151,8 +151,8 @@ def load_model_results():
 def load_dataframe():
     return pd.read_csv('data.csv')
 
-def load_history():
-    return pd.read_csv('history.csv')
+#def load_history():
+    #return pd.read_csv('history.csv')
 
 data_layout = dbc.Container([
     dbc.Row([
@@ -161,11 +161,11 @@ data_layout = dbc.Container([
             html.Div(id='plots-div'),
             html.H2("Model Training Results", className="text-center my-4"),
             html.Div(id='model-results-div'),
-        ], width=6),
+        ], width=4),
         dbc.Col([
             html.H2("DataFrame Data", className="text-center my-4"),
             html.Div(id='dataframe-data'),
-        ], width=6)
+        ], width=8)
     ])
 ], fluid=True)
 
@@ -192,16 +192,17 @@ def update_plots(pathname):
         plots = load_model_results()
         return plots
     return ""
-
+"""
 @app.callback(
     Output('model-results-div', 'children'),
     Input('url', 'pathname')
 )
+
 def update_model_results(pathname):
     if pathname == '/data':
         history_df = load_history()
-        return dbc.Table.from_dataframe(history_df, striped=True, bordered=True, hover=True)
-    return ""
+        return dbc.Table.from_dataframe(None, striped=True, bordered=True, hover=True)
+""" 
 
 app.layout = html.Div([
     dcc.Location(id='url', refresh=False),
